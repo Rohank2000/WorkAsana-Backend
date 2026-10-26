@@ -113,19 +113,19 @@ app.post('/auth/login', async (req, res) => {
         const user = await userLogIn(req.body);
 
         if (!user) {
-            return res.status(400).json({ success: false, message: `Invalid Credentials` });
+            return res.status(400).json({ success: false, error: `Invalid Credentials` });
         }
 
         const isMatching = await bcrypt.compare(password, user.password);
 
         if (!isMatching) {
-            return res.status(400).json({ success: false, message: 'Invalid Credentials' });
+            return res.status(400).json({ success: false, error: 'Invalid Credentials' });
         }
 
         const token_value = JWT.sign({ userId: user._id }, process.env.JWT_SECRET_KEY, { expiresIn: '24h' });
 
         if (!token_value) {
-            return res.status(400).json({ success: false, message: 'Failed to Generate Token' });
+            return res.status(400).json({ success: false, error: 'Failed to Generate Token' });
         }
 
         return res.status(200).json({ success: true, message: 'Log In Successful', token_value });
@@ -232,18 +232,18 @@ app.get('/tasks', async (req, res) => {
         const invalidKeys = providedQueryKeys.filter((key) => !allowedQueryFields.includes(key));
 
         if (invalidKeys > 0) {
-            return res.status(400).json({ success: false, message: `Invalid Query Operators - ${invalidKeys.join(', ')}` });
+            return res.status(400).json({ success: false, error: `Invalid Query Operators - ${invalidKeys.join(', ')}` });
         }
 
         const task = await getAllTaskData(req.query);
 
         if (!task || task.length === 0) {
-            return res.status(404).json({ success: false, message: 'No Task Data Found Matching The Criteria' });
+            return res.status(404).json({ success: false, error: 'No Task Data Found Matching The Criteria' });
         }
 
         return res.status(200).json({ success: true, message: 'Task Data Fetched Successfully', task });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
@@ -270,7 +270,7 @@ app.put('/tasks/:id', authenticateJWT, async (req, res) => {
     try {
         const { id } = req.params;
         if (!id) {
-            return res.status(404).json({ success: false, message: `Task With Id '${id}' Not Found` });
+            return res.status(404).json({ success: false, error: `Task With Id '${id}' Not Found` });
         }
         const task = await updateTaskData(req.params.id, req.body);
         res.status(200).json({ success: false, message: 'Task Data Successfully Updated', task });
@@ -309,7 +309,7 @@ app.delete('/tasks/:id', authenticateJWT, async (req, res) => {
     try {
         const { id } = req.params;
         if (!id) {
-            return res.status(404).json({ success: false, message: `Task With Id '${id}' Not Found` });
+            return res.status(404).json({ success: false, error: `Task With Id '${id}' Not Found` });
         }
 
         const taskDataDeleted = await deleteTaskData(req.params.id);
