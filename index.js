@@ -202,18 +202,18 @@ app.post('/tasks', authenticateJWT, async (req, res) => {
 
 const getAllTaskData = async (taskQueryParameter) => {
     try {
-        const { owner, tags, ...restTaskFields } = taskQueryParameter;
+        const { owners, tags, ...restTaskFields } = taskQueryParameter;
         const nonEmptyTaskFields = Object.fromEntries(Object.entries(restTaskFields).filter(([Key, value]) => value !== undefined && value !== ""));
 
-        if (owner) {
-            nonEmptyTaskFields.owner = { $in: owner.split(", ") };
+        if (owners) {
+            nonEmptyTaskFields.owners = { $in: owners.split(/,\s*/) };
         }
 
         if (tags) {
-            nonEmptyTaskFields.tags = { $in: tags.split(", ") };
+            nonEmptyTaskFields.tags = { $in: tags.split(/,\s*/) };
         }
 
-        const allTaskData = await taskModel.find(nonEmptyTaskFields).populate('project owner tags');
+        const allTaskData = await taskModel.find(nonEmptyTaskFields).populate('project owners tags');
         return allTaskData;
     } catch (error) {
         console.log('Error', error.message);
@@ -225,13 +225,13 @@ const getAllTaskData = async (taskQueryParameter) => {
 
 app.get('/tasks', async (req, res) => {
     try {
-        const allowedQueryFields = ['team', 'owner', 'tags', 'project', 'status'];
+        const allowedQueryFields = ['team', 'owners', 'tags', 'project', 'status'];
 
-        const providedQueryKeys = Objects.keys(req.query);
+        const providedQueryKeys = Object.keys(req.query);
 
         const invalidKeys = providedQueryKeys.filter((key) => !allowedQueryFields.includes(key));
 
-        if (invalidKeys > 0) {
+        if (invalidKeys.length > 0) {
             return res.status(400).json({ success: false, error: `Invalid Query Operators - ${invalidKeys.join(', ')}` });
         }
 
@@ -251,7 +251,7 @@ app.get('/tasks', async (req, res) => {
 
 const updateTaskData = async (taskId, updatedTaskData) => {
     try {
-        NonBlankUpdatedTaskData = Object.fromEntries(Object.entries(updatedTaskData).filter(([key, value]) => value !== "" && value !== undefined && value.length !== 0));
+        const NonBlankUpdatedTaskData = Object.fromEntries(Object.entries(updatedTaskData).filter(([key, value]) => value !== "" && value !== undefined && value.length !== 0));
 
         const taskData = await taskModel.findByIdAndUpdate(taskId, NonBlankUpdatedTaskData, {
             returnDocument: 'after',
@@ -270,10 +270,15 @@ app.put('/tasks/:id', authenticateJWT, async (req, res) => {
     try {
         const { id } = req.params;
         if (!id) {
-            return res.status(404).json({ success: false, error: `Task With Id '${id}' Not Found` });
+            return res.status(404).json({ success: false, error: `Task Id Missing` });
         }
         const task = await updateTaskData(req.params.id, req.body);
-        res.status(200).json({ success: false, message: 'Task Data Successfully Updated', task });
+
+        if (!task) {
+            return res.status(404).json({ success: false, error: `Task With Id '${id}' Not Found` });
+        }
+
+        res.status(200).json({ success: true, message: 'Task Data Successfully Updated', task });
     } catch (error) {
         if (error.name === 'ValidationError') {
             const errorMessages = Object.values(error.errors).map((err) => {
@@ -314,7 +319,175 @@ app.delete('/tasks/:id', authenticateJWT, async (req, res) => {
 
         const taskDataDeleted = await deleteTaskData(req.params.id);
 
+        if (!taskDataDeleted) {
+            return res.status(404).json({ success: false, error: `Task With Id '${id}' Not Found` });
+        }
         return res.status(200).json({ success: true, message: 'Task Deleted Successfully', taskDataDeleted });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Add Team Data using Mongoose 
+
+const addNewTeam = async (teamDetails) => {
+    try {
+        const { selectedUserIds, ...leftTeamDetails } = teamDetails;
+
+        const newTeamData = new teamModel(leftTeamDetails);
+
+        const savedTeamData = await newTeamData.save();
+
+        if (selectedUserIds && selectedUserIds.length > 0) {
+            await userModel.updateMany(
+                { _id: { $in: selectedUserIds } },
+                { $set: { team: newTeamData._id } }
+            );
+        }
+
+        return savedTeamData;
+    } catch (error) {
+        console.error('Error', error.message);
+        throw error;
+    }
+}
+
+// Add New Team Using Express API
+
+app.post('/teams', authenticateJWT, async (req, res) => {
+    try {
+        const newTeam = await addNewTeam(req.body);
+        return res.status(201).json({ success: true, message: 'New Team Added And Members Assigned Successfully', newTeam });
+    } catch (error) {
+        if (error.name === "ValidationError") {
+            const errorMessages = Object.values(error.errors).map((err) => {
+                if (err.kind === "required") {
+                    return `${err.path} is required`;
+                }
+                return `${err.path} ${err.message.toLowerCase()}`;
+            });
+            res.status(400).json({ success: false, error: `Invalid Inputs : ${errorMessages.join(', ')}` });
+        } else if (error.code === '11000') {
+            const fieldName = Object.keys(error.keyPattern)[0];
+            res.status(409).json({ success: false, error: `${fieldName} Already Exists` });
+        } else {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    }
+});
+
+// Add New Members To Existing Team Using Mongoose
+
+const newMemberToExistingTeam = async (newMemberDetail) => {
+    try {
+        const { selectedUserIds, ...leftNewMemberDetail } = newMemberDetail;
+        const targetTeamId = leftNewMemberDetail.teamId || leftNewMemberDetail._id || leftNewMemberDetail.team;
+
+        if (selectedUserIds && selectedUserIds.length > 0) {
+            const newMember = await userModel.updateMany(
+                { _id: { $in: selectedUserIds } },
+                { $set: { team: targetTeamId } }
+            );
+
+            return newMember;
+        }
+
+        return { message: 'No member IDs provided to assign' };
+    } catch (error) {
+        console.error('Error', error.message);
+        throw error;
+    }
+}
+
+// Add New Members To Existing Team Using Express API
+
+app.post('/teams/add-members', authenticateJWT, async (req, res) => {
+    try {
+        const member = await newMemberToExistingTeam(req.body);
+        return res.status(201).json({ success: true, message: 'New Member Added Successfully', member });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get Team Data + Member Data Using Mongoose
+
+const getTeamData = async (teamId) => {
+    try {
+        const teamsWithMembers = await teamModel.aggregate([
+            {
+                $match: {
+                    _id: new mongoose.Types.ObjectId(teamId)
+                }
+            },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: '_id',
+                    foreignField: 'team',
+                    as: 'members'
+                }
+            },
+            {
+                $project: {
+                    name: 1,
+                    description: 1,
+                    'members._id': 1,
+                    'members.name': 1,
+                    'members.email': 1
+                }
+            }
+        ]);
+
+        return teamsWithMembers;
+
+    } catch (error) {
+        console.error('Error', error.message);
+        throw error;
+    }
+};
+
+// Get Team Data + Member Data Using Express API
+
+app.get('/teams/:teamId', async (req, res) => {
+    try {
+
+        const teamData = await getTeamData(req.params.teamId);
+
+        if (!teamData || teamData.length === 0) {
+            return res.status(404).json({ success: false, error: 'Failed To Fetch Team Data', });
+        }
+
+        return res.status(200).json({ success: true, message: 'Team Data Fetched Successfully', teamData });
+
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get List Of Available Users To Be Added In New Team Using Mongoose
+
+const getAvailableUsers = async () => {
+    try {
+        const availableUsers = await userModel.find({ team: null }).select('-password');
+        return availableUsers;
+    } catch (error) {
+        console.error('Error', error.message);
+        throw error;
+    }
+}
+
+// Get List Of Available Users To Be Added In New Team Using Express API
+
+app.get('/teams/add-members/available-users', authenticateJWT, async (req, res) => {
+    try {
+        const usersAvailable = await getAvailableUsers();
+
+        if (!usersAvailable || usersAvailable.length === 0) {
+            return res.status(404).json({ success: false, error: 'No Users/Team Members(Owners) Left To Add (Most Likely They Are Part Of Other Teams)' });
+        }
+
+        return res.status(200).json({ success: true, message: 'Users/Team Members(Owners) Available To Be Added In A Team', usersAvailable });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
