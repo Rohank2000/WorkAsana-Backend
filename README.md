@@ -21,7 +21,7 @@ It provides authentication, role/team collaboration, task lifecycle tracking, pr
   - [2. Task Management Routes](#2-task-management-routes)
   - [3. Team Management Routes](#3-team-management-routes)
   - [4. Project Management Routes](#4-project-management-routes)
-  - [5. Tag Management Routes](#5-tag-management-routes)
+  - [5. Tag Management Routes (asanaTags)](#5-tag-management-routes-asanatags)
   - [6. Reporting & Analytics Routes](#6-reporting--analytics-routes)
 - [Data Models Overview](#data-models-overview)
 - [Response & Error Handling](#response--error-handling)
@@ -268,12 +268,14 @@ Authorization: Bearer <your-token-here>
 
 ---
 
-### 5. Tag Management Routes
+### 5. Tag Management Routes (`asanaTags`)
 
 | Method | Endpoint | Auth Required | Description |
 |---|---|:---:|---|
 | `POST` | `/tags` | No | Create a new tag |
 | `GET` | `/tags` | No | Fetch all available tags |
+
+> **Note:** Tag documents are stored in MongoDB under the **`asanaTags`** collection/model (`models/tag.models.js`), referenced by tasks via `ref: 'asanaTags'`.
 
 #### `POST /tags`
 - **Body:**
@@ -334,8 +336,8 @@ Authorization: Bearer <your-token-here>
 - **User**: `name`, `email` (unique), `password` (bcrypt hashed), `team` (ObjectId ref: `Team`)
 - **Team**: `name` (unique), `description`
 - **Project**: `name` (unique), `description`, timestamps (`createdAt`, `updatedAt`)
-- **Tag**: `name` (unique)
-- **Task**: `name`, `project` (ref: `Project`), `team` (ref: `Team`), `owners` (Array of refs: `User`), `tags` (Array of refs: `Tag`), `timeToComplete` (Number, days), `status` (`'To Do'`, `'In Progress'`, `'Completed'`, `'Blocked'`), timestamps (`createdAt`, `updatedAt`)
+- **asanaTags (Tag)**: `name` (unique) — Mongoose model registered as `'asanaTags'` (MongoDB collection: `asanatags`)
+- **Task**: `name`, `project` (ref: `Project`), `team` (ref: `Team`), `owners` (Array of refs: `User`), `tags` (Array of refs: `asanaTags`), `timeToComplete` (Number, days), `status` (`'To Do'`, `'In Progress'`, `'Completed'`, `'Blocked'`), timestamps (`createdAt`, `updatedAt`)
 
 ---
 
