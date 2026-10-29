@@ -78,9 +78,9 @@ Make sure you have installed:
 Create a `.env` file in the root directory and add the following configuration:
 
 ```env
-PORT=3000
-MongoDBURI=mongodb+srv://<username>:<password>@cluster.mongodb.net/workasana?retryWrites=true&w=majority
-JWT_SECRET_KEY=your_jwt_secret_key_here
+PORT=<YOUR_PORT_VALUE>
+YOUR_MONGODB_KEY=<MONGODB_CONNECTION_STRING>
+JWT_SECRET_KEY=<YOUR_JWT_SECRET_VALUE>
 ```
 
 ### Running the Application
