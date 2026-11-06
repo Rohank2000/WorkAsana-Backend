@@ -33,19 +33,25 @@ const authenticateJWT = (req, res, next) => {
         const authHeader = req.header('Authorization');
 
         if (!authHeader || !authHeader.startsWith('Bearer')) {
-            return res.status(401).json({ success: false, error: 'Access Denied - No Token Found or Token Token Expired', redirectTo: '/auth/login' });
+            return res.status(401).json({ success: false, error: 'Access Denied - No Token Found', redirectTo: '/auth/login' });
         }
 
         const token = authHeader.split(' ')[1];
 
         const verifiedToken = JWT.verify(token, process.env.JWT_SECRET_KEY);
-
         req.user = verifiedToken;
 
         next();
 
     } catch (error) {
-        return res.status(500).json({ success: false, error: `Access Denied - ${error.message}` });
+        if (err.name === 'TokenExpiredError') {
+            res.status(401).json({ success: false, error: `Access Denied - ${error.message}` });
+        } else if (error.name === 'JsonWebTokenError') {
+            res.status(401).json({ success: false, error: `Access Denied - ${error.message}` });
+        } else {
+            res.status(500).json({ success: false, error: error.message });
+        }
+
     }
 }
 
