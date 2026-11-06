@@ -33,7 +33,7 @@ const authenticateJWT = (req, res, next) => {
         const authHeader = req.header('Authorization');
 
         if (!authHeader || !authHeader.startsWith('Bearer')) {
-            return res.status(401).json({ success: false, error: 'Access Denied - No Token Found' });
+            return res.status(401).json({ success: false, error: 'Access Denied - No Token Found or Token Token Expired', redirectTo: '/auth/login' });
         }
 
         const token = authHeader.split(' ')[1];
@@ -45,7 +45,7 @@ const authenticateJWT = (req, res, next) => {
         next();
 
     } catch (error) {
-        return res.status(401).json({ success: false, error: `Access Denied - ${error.message}` });
+        return res.status(500).json({ success: false, error: `Access Denied - ${error.message}` });
     }
 }
 
@@ -582,7 +582,7 @@ const addNewProject = async (projectDetails) => {
 
 // Add New Project Using Express API
 
-app.post('/projects', async (req, res) => {
+app.post('/projects', authenticateJWT, async (req, res) => {
     try {
         const project = await addNewProject(req.body);
         return res.status(201).json({ success: true, message: 'Project Added Successfully', project });
