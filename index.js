@@ -38,13 +38,17 @@ const authenticateJWT = (req, res, next) => {
 
         const token = authHeader.split(' ')[1];
 
+        if (!token || token === 'null' || token === 'undefined') {
+            return res.status(401).json({ success: false, error: 'Access Denied - No Token Found', redirectTo: '/auth/login' });
+        }
+
         const verifiedToken = JWT.verify(token, process.env.JWT_SECRET_KEY);
         req.user = verifiedToken;
 
         next();
 
     } catch (error) {
-        if (err.name === 'TokenExpiredError') {
+        if (error.name === 'TokenExpiredError') {
             res.status(401).json({ success: false, error: `Access Denied - ${error.message}` });
         } else if (error.name === 'JsonWebTokenError') {
             res.status(401).json({ success: false, error: `Access Denied - ${error.message}` });
@@ -87,7 +91,7 @@ app.post('/auth/signup', async (req, res) => {
             });
             res.status(400).json({ success: false, error: `Invalid Input : ${errorMessages.join(', ')}` });
         } else if (error.code === 11000) {
-            const fieldName = Object.keys(error.keyPattern)[0];
+            const fieldName = error.keyPattern ? Object.keys(error.keyPattern)[0] : 'Field';
             res.status(409).json({ success: false, error: `${fieldName} Already Exists` });
         } else {
             res.status(500).json({ success: false, error: error.message });
@@ -602,7 +606,7 @@ app.post('/projects', authenticateJWT, async (req, res) => {
             });
             res.status(400).json({ success: false, error: `Invalid Inputs : ${errorMessages.join(', ')}` });
         } else if (error.code === 11000) {
-            const fieldName = Object.keys(error.keyPattern)[0];
+            const fieldName = error.keyPattern ? Object.keys(error.keyPattern)[0] : 'Field';
             res.status(409).json({ success: false, error: `${fieldName} Already Exists` });
         } else {
             res.status(500).json({ success: false, error: error.message });
@@ -908,6 +912,15 @@ app.get('/report/closed-tasks', async (req, res) => {
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
+});
+
+// Global Error Handler to guarantee JSON responses on unhandled errors
+app.use((err, req, res, next) => {
+    console.error("Unhandled Error:", err);
+    res.status(err.status || 500).json({
+        success: false,
+        error: err.message || 'Internal Server Error'
+    });
 });
 
 const PORT = process.env.PORT || 3000;
