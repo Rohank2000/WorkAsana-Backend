@@ -467,9 +467,6 @@ app.post('/teams/add-members', authenticateJWT, async (req, res) => {
 
 const getTeamData = async (teamId) => {
     try {
-        if (!mongoose.Types.ObjectId.isValid(teamId)) {
-            return null;
-        }
 
         const teamsWithMembers = await teamModel.aggregate([
             {
@@ -496,7 +493,7 @@ const getTeamData = async (teamId) => {
             }
         ]);
 
-        return teamsWithMembers[0] || null;
+        return teamsWithMembers;
 
     } catch (error) {
         console.error('Error', error.message);
@@ -508,6 +505,14 @@ const getTeamData = async (teamId) => {
 
 app.get('/teams/:teamId', async (req, res) => {
     try {
+
+        const { teamId } = req.params;
+
+        if (!teamId || !mongoose.Types.ObjectId.isValid(teamId)) {
+            return res.status(400).json({
+                success: false, error: ' Team Id Missing or Invalid'
+            });
+        }
 
         const teamData = await getTeamData(req.params.teamId);
 
@@ -644,10 +649,32 @@ app.get('/projects', async (req, res) => {
 
 const getProjectDetailsById = async (projectId) => {
     try {
-        if (!mongoose.Types.ObjectId.isValid(projectId)) {
-            return null;
-        }
-        const specificProjectDetails = await projectModel.findById(projectId);
+        const specificProjectDetails = await projectModel.aggregate([
+            {
+                $match: {
+                    _id: new mongoose.Types.ObjectId(projectId)
+                }
+            },
+            {
+                $lookup: {
+                    from: 'tasks',
+                    localField: '_id',
+                    foreignField: 'project',
+                    as: 'tasklist'
+                }
+            },
+            {
+                $project: {
+                    name: 1,
+                    description: 1,
+                    'tasklist._id': 1,
+                    'tasklist.name': 1,
+                    'tasklist.owners': 1,
+                    'tasklist.status': 1,
+                    'tasklist.timeToComplete': 1,
+                }
+            }
+        ]);
         return specificProjectDetails;
     } catch (error) {
         console.error('Error', error.message);
@@ -660,7 +687,14 @@ const getProjectDetailsById = async (projectId) => {
 app.get('/projects/:projectId', async (req, res) => {
     try {
         const { projectId } = req.params;
-        const projectDetailsById = await getProjectDetailsById(projectId);
+
+        if (!projectId || !mongoose.Types.ObjectId.isValid(projectId)) {
+            return res.status(400).json({
+                success: false, error: 'Project Id Missing or Invalid'
+            });
+        }
+
+        const projectDetailsById = await getProjectDetailsById(req.params.projectId);
 
         if (!projectDetailsById) {
             return res.status(404).json({ success: false, error: `Project With Id '${projectId}' Not Found` });
