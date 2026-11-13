@@ -218,7 +218,7 @@ app.post('/tasks', authenticateJWT, async (req, res) => {
 const getAllTaskData = async (taskQueryParameter) => {
     try {
         const { owners, tags, ...restTaskFields } = taskQueryParameter;
-        const nonEmptyTaskFields = Object.fromEntries(Object.entries(restTaskFields).filter(([Key, value]) => value !== undefined && value !== ""));
+        const nonEmptyTaskFields = Object.fromEntries(Object.entries(restTaskFields).filter(([Key, value]) => value !== undefined && value !== "" && value !== null));
 
         if (owners) {
             nonEmptyTaskFields.owners = { $in: owners.split(/,\s*/) };
@@ -647,34 +647,36 @@ app.get('/projects', async (req, res) => {
 
 // Get Specific Project Details Using Mongoose
 
-const getProjectDetailsById = async (projectId) => {
+const getProjectDetailsById = async (projectId, taskQueryParameter = {}) => {
     try {
-        const specificProjectDetails = await projectModel.aggregate([
-            {
-                $match: {
-                    _id: new mongoose.Types.ObjectId(projectId)
-                }
-            },
-            {
-                $lookup: {
-                    from: 'tasks',
-                    localField: '_id',
-                    foreignField: 'project',
-                    as: 'tasklist'
-                }
-            },
-            {
-                $project: {
-                    name: 1,
-                    description: 1,
-                    'tasklist._id': 1,
-                    'tasklist.name': 1,
-                    'tasklist.owners': 1,
-                    'tasklist.status': 1,
-                    'tasklist.timeToComplete': 1,
-                }
-            }
-        ]);
+
+        const specificProjectDetails = await projectModel.findById(projectId).lean();
+
+        if (!specificProjectDetails) {
+            return null;
+        }
+
+        const { owners, tags, ...restTaskFields } = taskQueryParameter;
+
+        const nonEmptyTaskFields = Object.fromEntries(Object.entries(restTaskFields).filter(([key, value]) => value !== undefined && value !== null && value !== ""));
+
+        nonEmptyTaskFields.project = projectId;
+
+        if (owners) {
+            nonEmptyTaskFields.owners = { $in: owners.split(/,\s*/) }
+        }
+
+        if (tags) {
+            nonEmptyTaskFields.tags = { $in: tags.split(/,\s*/) }
+        }
+
+        const tasklist = await taskModel.find(nonEmptyTaskFields).select('-project -team -tags').populate({
+            path: 'owners',
+            select: 'name'
+        });
+
+        specificProjectDetails.tasklist = tasklist;
+
         return specificProjectDetails;
     } catch (error) {
         console.error('Error', error.message);
@@ -694,7 +696,17 @@ app.get('/projects/:projectId', async (req, res) => {
             });
         }
 
-        const projectDetailsById = await getProjectDetailsById(req.params.projectId);
+        const allowedQueryFields = ['owners', 'team', 'tags', 'status'];
+
+        const providedQueryKeys = Object.keys(req.query);
+
+        const invalidKeys = providedQueryKeys.filter((key) => !allowedQueryFields.includes(key));
+
+        if (invalidKeys.length > 0) {
+            return res.status(400).json({ success: false, error: `Invalid Query Operator : ${invalidKeys.join(', ')}` });
+        }
+
+        const projectDetailsById = await getProjectDetailsById(req.params.projectId, req.query);
 
         if (!projectDetailsById) {
             return res.status(404).json({ success: false, error: `Project With Id '${projectId}' Not Found` });
