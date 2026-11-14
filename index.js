@@ -176,6 +176,33 @@ app.get('/auth/me', authenticateJWT, async (req, res) => {
     }
 });
 
+// Get All Owner/User Names using mongoose
+
+const getAllOwnerNames = async () => {
+    try {
+        const ownerNames = await userModel.find().select('name');
+        return ownerNames;
+    } catch (error) {
+        console.error('Error', error.message);
+        throw error;
+    }
+}
+
+// Get All Owner/User Names using Express API
+
+app.get('/ownerNames', async (req, res) => {
+    try {
+        const owner = await getAllOwnerNames();
+        if (!owner || !owner.length > 0) {
+            return res.status(404).json({ success: false, error: "Owner/User Details Not Found" })
+        }
+
+        return res.status(200).json({ success: true, message: "Owner/User Details Fetched SuccessFully", owner });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // Adding a New Task using Mongoose helper function 
 
 const addNewTask = async (taskData) => {
