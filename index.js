@@ -472,7 +472,6 @@ const newMemberToExistingTeam = async (newMemberDetail) => {
             return newMember;
         }
 
-        return { message: 'No member IDs provided to assign' };
     } catch (error) {
         console.error('Error', error.message);
         throw error;
@@ -483,8 +482,45 @@ const newMemberToExistingTeam = async (newMemberDetail) => {
 
 app.post('/teams/add-members', authenticateJWT, async (req, res) => {
     try {
+        const { selectedUserIds } = req.body;
+
+        if (!selectedUserIds) {
+            return res.status(404).json({ success: false, error: 'No member IDs provided to assign' });
+        }
+
         const member = await newMemberToExistingTeam(req.body);
+
         return res.status(201).json({ success: true, message: 'New Member Added Successfully', member });
+
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Delete specific member details from teams using mongoose
+
+const memberDeleteFromTeam = async (memberId) => {
+    try {
+        const deleteMember = await userModel.findByIdAndUpdate(memberId, { $unset: { team: "" } }, { new: true });
+        return deleteMember;
+    } catch (error) {
+        console.error('Error', error.message);
+        throw error;
+    }
+}
+
+// Delete specific member details from teams using express
+
+app.delete('/team/member/delete/:memberId', authenticateJWT, async (req, res) => {
+    try {
+        const { memberId } = req.params;
+
+        if (!memberId) {
+            return res.status(404).json({ success: false, error: 'No member ID provided' });
+        }
+        const memberDelete = await memberDeleteFromTeam(req.params.memberId);
+
+        return res.status(201).json({ success: true, message: 'Member successfully removed from Team Collection', memberDelete });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
@@ -510,17 +546,34 @@ const getTeamData = async (teamId) => {
                 }
             },
             {
+                $lookup: {
+                    from: 'tasks',
+                    localField: '_id',
+                    foreignField: 'team',
+                    as: 'teamTasks'
+                }
+            },
+            {
                 $project: {
                     name: 1,
                     description: 1,
                     'members._id': 1,
                     'members.name': 1,
-                    'members.email': 1
+                    'members.email': 1,
+                    'teamTasks._id': 1,
+                    'teamTasks.name': 1,
+                    'teamTasks.project': 1,
+                    'teamTasks.owners': 1,
+                    'teamTasks.tags': 1,
+                    'teamTasks.timeToComplete': 1,
+                    'teamTasks.status': 1
                 }
             }
         ]);
 
-        return teamsWithMembers;
+        const taskListPopulated = await teamModel.populate(teamsWithMembers, [{ path: 'teamTasks.project', model: 'Project', select: 'name description' }, { path: 'teamTasks.owners', model: 'User', select: 'name email' }, { path: 'teamTasks.tags', model: 'asanaTags', select: 'name' }]);
+
+        return taskListPopulated;
 
     } catch (error) {
         console.error('Error', error.message);
