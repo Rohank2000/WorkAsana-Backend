@@ -458,15 +458,13 @@ app.post('/teams', authenticateJWT, async (req, res) => {
 
 // Add New Members To Existing Team Using Mongoose
 
-const newMemberToExistingTeam = async (newMemberDetail) => {
+const newMemberToExistingTeam = async (teamId, selectedUserIds) => {
     try {
-        const { selectedUserIds, ...leftNewMemberDetail } = newMemberDetail;
-        const targetTeamId = leftNewMemberDetail.teamId || leftNewMemberDetail._id || leftNewMemberDetail.team;
 
         if (selectedUserIds && selectedUserIds.length > 0) {
             const newMember = await userModel.updateMany(
                 { _id: { $in: selectedUserIds } },
-                { $set: { team: targetTeamId } }
+                { $set: { team: teamId } }
             );
 
             return newMember;
@@ -480,15 +478,17 @@ const newMemberToExistingTeam = async (newMemberDetail) => {
 
 // Add New Members To Existing Team Using Express API
 
-app.post('/teams/add-members', authenticateJWT, async (req, res) => {
+app.post('/teams/add-members/:teamId', authenticateJWT, async (req, res) => {
     try {
+        const { teamId } = req.params;
+
         const { selectedUserIds } = req.body;
 
-        if (!selectedUserIds) {
+        if (selectedUserIds.length === 0 || !teamId) {
             return res.status(404).json({ success: false, error: 'No member IDs provided to assign' });
         }
 
-        const member = await newMemberToExistingTeam(req.body);
+        const member = await newMemberToExistingTeam(req.params.teamId, req.body);
 
         return res.status(201).json({ success: true, message: 'New Member Added Successfully', member });
 
@@ -1038,15 +1038,6 @@ app.get('/report/closed-tasks', async (req, res) => {
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
-});
-
-// Global Error Handler to guarantee JSON responses on unhandled errors
-app.use((err, req, res, next) => {
-    console.error("Unhandled Error:", err);
-    res.status(err.status || 500).json({
-        success: false,
-        error: err.message || 'Internal Server Error'
-    });
 });
 
 const PORT = process.env.PORT || 3000;
