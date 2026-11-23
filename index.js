@@ -488,7 +488,7 @@ app.post('/teams/add-members/:teamId', authenticateJWT, async (req, res) => {
             return res.status(404).json({ success: false, error: 'No member IDs provided to assign' });
         }
 
-        const member = await newMemberToExistingTeam(req.params.teamId, req.body);
+        const member = await newMemberToExistingTeam(teamId, selectedUserIds);
 
         return res.status(201).json({ success: true, message: 'New Member Added Successfully', member });
 
