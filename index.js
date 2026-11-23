@@ -518,7 +518,7 @@ app.delete('/team/member/delete/:memberId', authenticateJWT, async (req, res) =>
         if (!memberId) {
             return res.status(404).json({ success: false, error: 'No member ID provided' });
         }
-        const memberDelete = await memberDeleteFromTeam(req.params.memberId);
+        const memberDelete = await memberDeleteFromTeam(memberId);
 
         return res.status(201).json({ success: true, message: 'Member successfully removed from Team Collection', memberDelete });
     } catch (error) {
