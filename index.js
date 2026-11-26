@@ -418,12 +418,14 @@ const addNewTeam = async (teamDetails) => {
 
         const savedTeamData = await newTeamData.save();
 
-        if (selectedUserIds && selectedUserIds.length > 0) {
-            await userModel.updateMany(
-                { _id: { $in: selectedUserIds } },
-                { $set: { team: newTeamData._id } }
-            );
-        }
+        setTimeout(async () => {
+            if (selectedUserIds && selectedUserIds.length > 0) {
+                await userModel.updateMany(
+                    { _id: { $in: selectedUserIds } },
+                    { $set: { team: newTeamData._id } }
+                );
+            }
+        }, 2000);
 
         return savedTeamData;
     } catch (error) {
