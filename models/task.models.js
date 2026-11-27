@@ -7,7 +7,6 @@ const taskSchema = new mongoose.Schema({
     owners: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }],
     tags: [{ type: mongoose.Schema.Types.ObjectId, ref: 'asanaTags' }],
     dueDate: { type: Date, required: true },
-    timeToComplete: { type: Number, required: true },
     status: { type: String, enum: ['To Do', 'In Progress', 'Completed', 'Blocked'], default: 'To Do' },
 
 }, { timestamps: true });
