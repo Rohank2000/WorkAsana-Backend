@@ -49,9 +49,9 @@ const authenticateJWT = (req, res, next) => {
 
     } catch (error) {
         if (error.name === 'TokenExpiredError') {
-            res.status(401).json({ success: false, error: `Access Denied - ${error.message}` });
+            res.status(401).json({ success: false, error: `Access Denied - ${error.message}`, redirectTo: '/auth/login' });
         } else if (error.name === 'JsonWebTokenError') {
-            res.status(401).json({ success: false, error: `Access Denied - ${error.message}` });
+            res.status(401).json({ success: false, error: `Access Denied - ${error.message}`, redirectTo: '/auth/login' });
         } else {
             res.status(500).json({ success: false, error: error.message });
         }
@@ -418,14 +418,12 @@ const addNewTeam = async (teamDetails) => {
 
         const savedTeamData = await newTeamData.save();
 
-        setTimeout(async () => {
-            if (selectedUserIds && selectedUserIds.length > 0) {
-                await userModel.updateMany(
-                    { _id: { $in: selectedUserIds } },
-                    { $set: { team: newTeamData._id } }
-                );
-            }
-        }, 2000);
+        if (selectedUserIds && selectedUserIds.length > 0) {
+            await userModel.updateMany(
+                { _id: { $in: selectedUserIds } },
+                { $set: { team: newTeamData._id } }
+            );
+        }
 
         return savedTeamData;
     } catch (error) {
